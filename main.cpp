@@ -4,7 +4,7 @@
 
 using namespace cpp_json;
 int main() {
-    auto&& j = json::obj({
+    auto j = json::obj({
     {"id", 42},
     {"key", "value"},
     {"array", json::arr({
@@ -25,8 +25,8 @@ int main() {
     std::cout << "array type: " << array.type_str() << "; size: " << array.size() << std::endl;
     std::cout << "[array content]" << std::endl;
     std::cout << (array.at(0) != array[1]) << std::endl;
-    auto& a_0 = array.at(0);
-    std::cout << "a_0: " << a_0.as_str() << std::endl;
+    const auto& a_0 = array.at(0);
+    std::cout << "a_0: " << a_0.as<std::string>() << std::endl;
     for (const auto& v : array.as<json::array>()) {
         switch (v.type()) {
             default:
