@@ -109,6 +109,7 @@ str: 1733
   - `try_as<T>()` returns pointer (or `nullptr`)
  
 ## TODO
+- [ ] Add clamp idx or throw an error in `insert(idx)` on attempting to insert out of range
 - [ ] Add `const` overload for `try_as<T>()`
 - [ ] Add `const` overloads for named getters (`as_str`, ...)
 - [ ] Consider addding `as_copy<T>()` helper that returns a value copy / conversion
