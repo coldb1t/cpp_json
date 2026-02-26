@@ -20,11 +20,10 @@ int main() {
 
     std::cout << "Root object type: " << j.type_str() << "; objects count: " << j.size() << std::endl;
     auto& id = j["id"];
+    id = 2;
     std::cout << "id (uint16_t): " << id.as_copy<std::uint16_t>() << std::endl;
-    id = 0;
-    std::cout << "id: " << id.as_num() << std::endl;
-    id = "66";
-    std::cout << "id: " << id.as_str() << std::endl;
+    std::cout << "id: " << (id + 1) << std::endl;
+    std::cout << "id: " << id << std::endl;
     std::cout << "key: " << j["key"].as<std::string>() << std::endl << std::endl;
 
     auto& array = j["array"];

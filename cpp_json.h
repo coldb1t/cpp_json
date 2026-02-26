@@ -1,5 +1,20 @@
 #pragma once
 
+/*
+  cpp_json
+*/
+
+/*
+  Config
+*/
+#define CPP_JSON_INCLUDE_NAMED_CASTS 1
+#define CPP_JSON_THROW_ON_BAD_COPY_CAST 0
+#define CPP_JSON_USE_CHAR_CONVERT_ON_DOUBLES 1
+#define CPP_JSON_DEFAULT_PRETTY_DUMP false
+
+/*
+  Includes
+*/
 #include <cstddef>
 #include <initializer_list>
 #include <stdexcept>
@@ -9,18 +24,12 @@
 #include <variant>
 #include <vector>
 
-// Config
-#define INCLUDE_NAMED_CASTS 1
-#define THROW_ON_BAD_COPY_CAST 0
-#define USE_CHAR_CONVERT_ON_DOUBLES 1
-
-//
-#if USE_CHAR_CONVERT_ON_DOUBLES == 1
+#if CPP_JSON_USE_CHAR_CONVERT_ON_DOUBLES == 1
 #include <charconv>
 #endif
 
 namespace cpp_json {
-  enum class j_value_type : std::uint8_t
+  enum class j_value_type : uint8_t
   {
     Null,
     Boolean,
@@ -101,7 +110,7 @@ namespace cpp_json {
     ~json() = default;
 
 #pragma region type checks
-#if INCLUDE_NAMED_CASTS == 1
+#if CPP_JSON_INCLUDE_NAMED_CASTS == 1
     [[nodiscard]] inline bool is_str() const noexcept {
       return is<std::string>();
     }
@@ -161,7 +170,7 @@ namespace cpp_json {
 #pragma endregion
 
 #pragma region type casts
-#if INCLUDE_NAMED_CASTS == 1
+#if CPP_JSON_INCLUDE_NAMED_CASTS == 1
     std::string& as_str() {
       if (!is<String>()) {
         throw type_error("invalid type cast");
@@ -230,7 +239,7 @@ namespace cpp_json {
     T as_copy() const {
       switch (type()) {
         default: {
-#if THROW_ON_BAD_COPY_CAST == 1
+#if CPP_JSON_THROW_ON_BAD_COPY_CAST == 1
           throw type_error("invalid type cast (copy)");
 #endif
           break;
@@ -252,7 +261,7 @@ namespace cpp_json {
       std::string out;
       switch (type()) {
         default: {
-#if THROW_ON_BAD_COPY_CAST == 1
+#if CPP_JSON_THROW_ON_BAD_COPY_CAST == 1
           throw type_error("invalid type cast (copy)");
 #endif
           break;
@@ -297,7 +306,12 @@ namespace cpp_json {
     }
 
     template<class T> requires allowed_v<T>
-    T* try_as() {
+    [[nodiscard]] inline T* try_as() noexcept {
+      return std::get_if<T>(&v_);
+    }
+
+    template<class T> requires allowed_v<T>
+    [[nodiscard]] inline const T* try_as() const noexcept {
       return std::get_if<T>(&v_);
     }
 #pragma endregion
@@ -320,6 +334,20 @@ namespace cpp_json {
       return o.back().second;
     }
 
+    const json& operator[](const char* key) const {
+      if (!is<object>()) {
+        throw type_error("operator[](key) on a non-object");
+      }
+
+      for (auto& [k, v] : as<object>()) {
+        if (k == key) {
+          return v;
+        }
+      }
+
+      throw type_error("operator[](key) -> key does not exists");
+    }
+
     // json
     inline friend bool operator==(const json& a, const json& b) noexcept {
       return a.v_ == b.v_;
@@ -337,6 +365,75 @@ namespace cpp_json {
     // ostream
     friend std::ostream& operator<<(std::ostream& os, const json& j) {
       return os << j.dump();
+    }
+
+    // String
+    json& operator+=(const std::string& rhs) {
+      if (!is<std::string>()) {
+        throw type_error("operator+= on non-string");
+      }
+
+      auto& str = as<std::string>();
+      str += rhs;
+
+      return *this;
+    }
+
+    // Number
+    template<typename T> requires std::is_arithmetic_v<T>
+    json& operator+=(const T& rhs) {
+      if (!is<double>()) {
+        throw type_error("operator+= on non-double");
+      }
+
+      as<double>() += static_cast<double>(rhs);
+      return *this;
+    }
+
+    template<typename T> requires std::is_arithmetic_v<T>
+    json& operator-=(const T& rhs) {
+      if (!is<double>()) {
+        throw type_error("operator-= on non-double");
+      }
+
+      as<double>() -= static_cast<double>(rhs);
+      return *this;
+    }
+
+    json& operator++() {
+      if (!is<double>()) {
+        throw type_error("operator++ on non-double");
+      }
+
+      as<double>()++;
+      return *this;
+    }
+
+    json& operator--() {
+      if (!is<double>()) {
+        throw type_error("operator-- on non-double");
+      }
+
+      as<double>()--;
+      return *this;
+    }
+
+    template<typename T> requires std::is_arithmetic_v<T>
+    json operator+(const T& rhs) const {
+      if (!is<double>()) {
+        throw type_error("operator+ on non-double");
+      }
+
+      return as<double>() + static_cast<double>(rhs);
+    }
+
+    template<typename T> requires std::is_arithmetic_v<T>
+    json operator-(const T& rhs) const {
+      if (!is<double>()) {
+        throw type_error("operator- on non-double");
+      }
+
+      return as<double>() - static_cast<double>(rhs);
     }
 #pragma endregion
 
@@ -425,7 +522,7 @@ namespace cpp_json {
         throw type_error("index out of range");
       }
 
-      a.insert(a.begin() + idx, std::move(value));
+      a.insert(a.begin() + static_cast<std::ptrdiff_t>(idx), std::move(value));
     }
 
     // Erasing
@@ -439,7 +536,7 @@ namespace cpp_json {
         throw type_error("index out of range");
       }
 
-      a.erase(a.begin() + idx);
+      a.erase(a.begin() + static_cast<std::ptrdiff_t>(idx));
     }
 #pragma endregion
 
@@ -571,7 +668,7 @@ namespace cpp_json {
         return;
       }
 
-#if USE_CHAR_CONVERT_ON_DOUBLES == 1
+#if CPP_JSON_USE_CHAR_CONVERT_ON_DOUBLES == 1
       char buf[64];
       auto [ptr, ec] = std::to_chars(
           buf,
