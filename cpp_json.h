@@ -275,6 +275,10 @@ namespace cpp_json {
       }
 
       auto& a = as<array>();
+      if (idx > a.size()) {
+        throw type_error("index out of range");
+      }
+
       a.insert(a.begin() + idx, std::move(value));
     }
 
@@ -321,6 +325,126 @@ namespace cpp_json {
 
     void make_null() noexcept {
       v_ = nullptr;
+    }
+
+  private:
+    void dump_object(const json& j, std::string& out) const {
+      const auto& o = j.as<object>();
+      if (o.empty()) {
+        out += "{}";
+        return;
+      }
+
+      out += "{ ";
+
+      for (auto idx = 0llu; idx < o.size(); idx++) {
+        const auto& [k, v] = o[idx];
+
+        dump_string(k, out);
+        out += ": ";
+        dump_internal(v, out);
+
+        if (idx != o.size() - 1llu) {
+          out += ", ";
+        }
+      }
+      out += " }";
+    }
+
+    void dump_array(const json& j, std::string& out) const {
+      const auto& a = j.as<array>();
+      if (a.empty()) {
+        out += "[]";
+        return;
+      }
+
+      out.push_back('[');
+      for (auto idx = 0llu; idx < a.size(); idx++) {
+        const auto& v = a.at(idx);
+        dump_internal(v, out);
+        if (idx != a.size() - 1llu) {
+          out += ", ";
+        }
+      }
+
+      out.push_back(']');
+    }
+
+    void dump_string(const std::string& s, std::string& out) const {
+      out.push_back('"');
+      for (const auto& c : s) {
+        switch (c) {
+          default:
+            //\uXXXX
+            out.push_back(c);
+            break;
+            //\ + "\/bfnrt
+          case '"':
+            out += "\\\"";
+            break;
+          case '\b':
+            out += "\\b";
+            break;
+          case '\f':
+            out += "\\f";
+            break;
+          case '\n':
+            out += "\\n";
+            break;
+          case '\r':
+            out += "\\r";
+            break;
+          case '\t':
+            out += "\\t";
+            break;
+          case '\\':
+            out += "\\\\";
+            break;
+        }
+      }
+      out.push_back('"');
+    }
+
+    void dump_double(const double& d, std::string& out) const {
+      if (const auto d_i64 = static_cast<int64_t>(d); d == static_cast<double>(d_i64)) {
+        out += std::to_string(d_i64);
+        return;
+      }
+
+      out += std::to_string(d);
+    }
+
+    void dump_internal(const json& j, std::string& out) const {
+      switch (j.type()) {
+        case Object:
+          dump_object(j, out);
+          break;
+        case Array:
+          dump_array(j, out);
+          break;
+        case String:
+          dump_string(j.as<std::string>(), out);
+          break;
+        case Number: {
+          dump_double(j.as<double>(), out);
+          break;
+        }
+        case Boolean:
+          out += j.as<bool>() ? "true" : "false";
+          break;
+        case Null:
+          out += "null";
+          break;
+      }
+    }
+
+  public:
+    [[nodiscard]] std::string dump() const {
+      std::string out;
+
+      dump_internal(*this, out);
+
+      return out;
     }
   };
 }

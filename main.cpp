@@ -1,15 +1,24 @@
+#include "cpp_json.h"
 #include <iostream>
 
-#include "cpp_json.h"
+
 
 using namespace cpp_json;
 int main() {
     auto j = json::obj({
     {"id", 42},
     {"key", "value"},
+    {"bool", true},
+    {"null_value\n", nullptr},
     {"array", json::arr({
-        "cpp", "json", 1, false, true, nullptr, 'c', 0x5, '\n'})}
+        "cpp", "json", 1.1f, 1.0, -1.1, false, true, nullptr, 'c', 0x5, '\n'})},
+    {"users", json::arr({
+        json::obj({ {"id", 1} }), json::obj({ { "id", 2 } }), json::obj(), json::obj(), json::obj() })},
+    {"empty_array", json::arr({})}
     });
+
+    std::cout << j.dump() << std::endl;
+
     std::cout << "Root object type: " << j.type_str() << "; objects count: " << j.size() << std::endl;
     auto& id = j["id"];
     std::cout << "id: " << id.as_num() << std::endl;
