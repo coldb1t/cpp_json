@@ -7,86 +7,80 @@ Example usage in `main.cpp`
 
 ## Example
 ```
-#include <iostream>
+auto j = json::obj({
+  {"id", 42},
+  {"key", "value"},
+  {"bool", true},
+  {"null_value\n", nullptr},
+  {"array", json::arr({
+      "cpp", "cpp", 1.05, -0.0, false, true, nullptr, 'c', 0x5, '\n'})},
+  {"users", json::arr({
+      json::obj({ {"id", 1} }), json::obj({ { "id", 2 } }), json::obj(), json::obj(), json::obj() })},
+  {"empty_array", json::arr({})}
+});
 
-#include "cpp_json.h"
+std::cout << "JSON dump: " << j << std::endl;
+std::cout << j << std::endl << std::endl;
 
-using namespace cpp_json;
-int main() {
-    auto j = json::obj({
-      {"id", 42},
-      {"key", "value"},
-      {"array", json::arr({
-          "cpp", "json", 1, false, true, nullptr, 'c', 0x5, '\n'})}
-      });
-    std::cout << "Root object type: " << j.type_str() << "; objects count: " << j.size() << std::endl;
-    auto& id = j["id"];
-    std::cout << "id: " << id.as_num() << std::endl;
-    id = 0;
-    std::cout << "id: " << id.as_num() << std::endl;
-    id = "66";
-    std::cout << "id: " << id.as_str() << std::endl;
-    std::cout << "key: " << j["key"].as<std::string>() << std::endl << std::endl;
+std::cout << "Root type: " << j.type_str() << "; Count: " << j.size() << std::endl;
+auto& id = j["id"]; id = 2;
+std::cout << "id (uint16_t): " << id.as_copy<std::uint16_t>() << '\t'; // 2
+std::cout << "id: " << (id++) << '\t'; // 3
+std::cout << "id: " << id << '\t'; // 3
+std::cout << "key: " << j["key"].as<std::string>() << std::endl; // value
 
-    auto& array = j["array"];
-    array.push_back(9999);
-    array.push_back("1733");
-    std::cout << "array type: " << array.type_str() << "; size: " << array.size() << std::endl;
-    std::cout << "[array content]" << std::endl;
-    std::cout << (array.at(0) != array[1]) << std::endl;
-    const auto& a_0 = array.at(0);
-    std::cout << "a_0: " << a_0.as<std::string>() << std::endl;
-    for (const auto& v : array.as<json::array>()) {
-        switch (v.type()) {
-            default:
-                std::cout << v.type_str() << std::endl;
-                break;
+std::cout << "=========[ARRAY]=========" << std::endl;
+auto& array = j["array"];
+array.push_back(9999); array.push_back("1733");
+std::cout << "Type: " << array.type_str() << "; Size: " << array.size() << std::endl;
 
-            case String:
-                std::cout << "str: " << v.as<std::string>() << std::endl;
-                break;
+std::cout << "[ARRAY CONTENT]" << std::endl;
+std::cout << "element [0] (" << array[0] << ") equals to [1] ("
+    << (array.at(0) == array[1] ? "true" : "false") << std::endl; // true
 
-            case Number:
-                std::cout << "num: " << v.as<double>() << std::endl;
-                break;
+std::cout << "Array iteration: [";
+// Iterating "json" class (type: Array)
+for (const auto& v : array) {
+    switch (v.type()) {
+        default:
+            std::cout << "Default: " << v.type_str() << "; ";
+            break;
 
-            case Boolean:
-                std::cout << "bool: " << v.as<bool>() << std::endl;
-                break;
+        case String:
+            std::cout << "String: " << v.as<std::string>() << "; ";
+            break;
 
-            case Null:
-                std::cout << "null: " << v.as<std::nullptr_t>() << std::endl;
-                break;
-        }
+        case Number:
+            std::cout << "Number: " << v.as<double>() << "; ";
+            break;
+
+        case Boolean:
+            std::cout << "Boolean: " << v.as<bool>() << "; ";
+            break;
+
+        case Null:
+            std::cout << "Null: " << v.as<std::nullptr_t>() << "; ";
+            break;
     }
-
-    return 0;
 }
+std::cout << "]" << std::endl;
+
+std::cout << "Array dump: " << array << std::endl;
 ```
 
 ## Output
 ```
-Root object type: Object; objects count: 3
-id: 42
-id: 0
-id: 66
-key: value
+JSON dump: { "id": 42, "key": "value", "bool": true, "null_value\n": null, "array": ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10], "users": [{ "id": 1 }, { "id": 2 }, {}, {}, {}], "empty_array": [] }
+{ "id": 42, "key": "value", "bool": true, "null_value\n": null, "array": ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10], "users": [{ "id": 1 }, { "id": 2 }, {}, {}, {}], "empty_array": [] }
 
-array type: Array; size: 11
-[array content]
-1
-a_0: cpp
-str: cpp
-str: json
-num: 1
-bool: 0
-bool: 1
-null: nullptr
-num: 99
-num: 5
-num: 10
-num: 9999
-str: 1733
+Root type: Object; Count: 7
+id (uint16_t): 2	id: 3	id: 3	key: value
+=========[ARRAY]=========
+Type: Array; Size: 12
+[ARRAY CONTENT]
+element [0] ("cpp") equals to [1] (true
+Array iteration: [String: cpp; String: cpp; Number: 1.05; Number: -0; Boolean: 0; Boolean: 1; Null: nullptr; Number: 99; Number: 5; Number: 10; Number: 9999; String: 1733; ]
+Array dump: ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10, 9999, "1733"]
 ```
 
 ## Features
@@ -114,9 +108,9 @@ str: 1733
 - [x] ~~Add `const` overloads for named getters (`as_str`, ...)~~
 - [x] ~~Consider addding `as_copy<T>()` helper that returns a value copy / conversion~~
 - [ ] Consider storing different numerical values not as `double` but in native (`int64_t`, ...)
-- [ ] Decide whether `json(const char*)` should treat `nullptr` as `null` instead of empty string
-- [ ] Add `contains(key)` helper for objects
-- [ ] Add `erase(key)` ~~and `erase(idx)` helpers~~
+- [x] ~~Decide whether `json(const char*)` should treat `nullptr` as `null` instead of empty string~~
+- [x] ~~Add `contains(key)` helper for objects~~
+- [x] ~~Add `erase(key)` and `erase(idx)` helpers~~
 - [ ] Add iterators for ~~arrays~~ and objects
 - [ ] **~~Add JSON serialization (`dump()`)~~, add "pretty" format**
 - [ ] **Add JSON parsing (`parse()` from string / stream)**

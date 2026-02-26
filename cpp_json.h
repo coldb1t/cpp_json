@@ -252,7 +252,6 @@ namespace cpp_json {
           return static_cast<T>(0);
       }
 
-
       return T{};
     }
 
@@ -354,11 +353,13 @@ namespace cpp_json {
     }
 
     // Arrays
-    json& operator[](const size_t key) {
-      return this->at(key);
+    template<typename T = size_t> // Otherwise [0] will be ambiguous
+    json& operator[](const T idx) {
+      return this->at(idx); // This checks type
     }
 
-    [[nodiscard]] const json& operator[](const size_t key) const {
+    template<typename T = size_t>
+    [[nodiscard]] const json& operator[](const T key) const {
       return this->at(key);
     }
 
@@ -400,7 +401,7 @@ namespace cpp_json {
       return *this;
     }
 
-    json& operator++() {
+    json& operator++(int) {
       if (!is<double>()) {
         throw type_error("operator++ on non-double");
       }
@@ -409,7 +410,7 @@ namespace cpp_json {
       return *this;
     }
 
-    json& operator--() {
+    json& operator--(int) {
       if (!is<double>()) {
         throw type_error("operator-- on non-double");
       }
@@ -537,6 +538,39 @@ namespace cpp_json {
       }
 
       a.erase(a.begin() + static_cast<std::ptrdiff_t>(idx));
+    }
+#pragma endregion
+
+#pragma region objects
+    [[nodiscard]] bool contains_key(const char* key) const {
+      if (!is<object>()) {
+        throw type_error("contains_key(key) on non-object");
+      }
+
+      for (const auto& [k, v] : as<object>()) {
+        if (k == key) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    bool erase_by_key(const char* key) {
+      if (!is<object>()) {
+        throw type_error("erase_by_key(key) on non-object");
+      }
+
+      auto& o = as<object>();
+      for (auto i = 0llu; i < o.size(); i++) {
+        const auto& [k,_] = o[i];
+        if (k == key) {
+          o.erase(o.begin() + static_cast<std::ptrdiff_t>(i));
+          return true;
+        }
+      }
+
+      return false;
     }
 #pragma endregion
 

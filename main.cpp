@@ -10,53 +10,59 @@ int main() {
     {"bool", true},
     {"null_value\n", nullptr},
     {"array", json::arr({
-        "cpp", "json", 1.05, -0.0, false, true, nullptr, 'c', 0x5, '\n'})},
+        "cpp", "cpp", 1.05, -0.0, false, true, nullptr, 'c', 0x5, '\n'})},
     {"users", json::arr({
         json::obj({ {"id", 1} }), json::obj({ { "id", 2 } }), json::obj(), json::obj(), json::obj() })},
     {"empty_array", json::arr({})}
     });
 
-    std::cout << j << std::endl;
+    std::cout << "JSON dump: " << j << std::endl;
+    std::cout << j << std::endl << std::endl;
 
-    std::cout << "Root object type: " << j.type_str() << "; objects count: " << j.size() << std::endl;
-    auto& id = j["id"];
-    id = 2;
-    std::cout << "id (uint16_t): " << id.as_copy<std::uint16_t>() << std::endl;
-    std::cout << "id: " << (id + 1) << std::endl;
-    std::cout << "id: " << id << std::endl;
-    std::cout << "key: " << j["key"].as<std::string>() << std::endl << std::endl;
+    std::cout << "Root type: " << j.type_str() << "; Count: " << j.size() << std::endl;
+    auto& id = j["id"]; id = 2;
+    std::cout << "id (uint16_t): " << id.as_copy<std::uint16_t>() << '\t'; // 2
+    std::cout << "id: " << (id++) << '\t'; // 3
+    std::cout << "id: " << id << '\t'; // 3
+    std::cout << "key: " << j["key"].as<std::string>() << std::endl; // value
 
+    std::cout << "=========[ARRAY]=========" << std::endl;
     auto& array = j["array"];
-    array.push_back(9999);
-    array.push_back("1733");
-    std::cout << "array type: " << array.type_str() << "; size: " << array.size() << std::endl;
-    std::cout << "[array content]" << std::endl;
-    std::cout << (array.at(0) != array[1]) << std::endl;
-    const auto& a_0 = array.at(0);
-    std::cout << "a_0: " << a_0.as<std::string>() << std::endl;
+    array.push_back(9999); array.push_back("1733");
+    std::cout << "Type: " << array.type_str() << "; Size: " << array.size() << std::endl;
+
+    std::cout << "[ARRAY CONTENT]" << std::endl;
+    std::cout << "element [0] (" << array[0] << ") equals to [1] ("
+        << (array.at(0) == array[1] ? "true" : "false") << std::endl; // true
+
+    std::cout << "Array iteration: [";
+    // Iterating "json" class (type: Array)
     for (const auto& v : array) {
         switch (v.type()) {
             default:
-                std::cout << v.type_str() << std::endl;
+                std::cout << "Default: " << v.type_str() << "; ";
                 break;
 
             case String:
-                std::cout << "str: " << v.as<std::string>() << std::endl;
+                std::cout << "String: " << v.as<std::string>() << "; ";
                 break;
 
             case Number:
-                std::cout << "num: " << v.as<double>() << std::endl;
+                std::cout << "Number: " << v.as<double>() << "; ";
                 break;
 
             case Boolean:
-                std::cout << "bool: " << v.as<bool>() << std::endl;
+                std::cout << "Boolean: " << v.as<bool>() << "; ";
                 break;
 
             case Null:
-                std::cout << "null: " << v.as<std::nullptr_t>() << std::endl;
+                std::cout << "Null: " << v.as<std::nullptr_t>() << "; ";
                 break;
         }
     }
+    std::cout << "]" << std::endl;
+
+    std::cout << "Array dump: " << array << std::endl;
 
     return 0;
 }
