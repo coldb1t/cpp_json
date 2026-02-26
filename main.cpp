@@ -1,7 +1,6 @@
 #include "cpp_json.h"
+
 #include <iostream>
-
-
 
 using namespace cpp_json;
 int main() {
@@ -11,17 +10,17 @@ int main() {
     {"bool", true},
     {"null_value\n", nullptr},
     {"array", json::arr({
-        "cpp", "json", 1.1f, 1.0, -1.1, false, true, nullptr, 'c', 0x5, '\n'})},
+        "cpp", "json", 1.05, -0.0, false, true, nullptr, 'c', 0x5, '\n'})},
     {"users", json::arr({
         json::obj({ {"id", 1} }), json::obj({ { "id", 2 } }), json::obj(), json::obj(), json::obj() })},
     {"empty_array", json::arr({})}
     });
 
-    std::cout << j.dump() << std::endl;
+    std::cout << j << std::endl;
 
     std::cout << "Root object type: " << j.type_str() << "; objects count: " << j.size() << std::endl;
     auto& id = j["id"];
-    std::cout << "id: " << id.as_num() << std::endl;
+    std::cout << "id (uint16_t): " << id.as_copy<std::uint16_t>() << std::endl;
     id = 0;
     std::cout << "id: " << id.as_num() << std::endl;
     id = "66";
@@ -36,7 +35,7 @@ int main() {
     std::cout << (array.at(0) != array[1]) << std::endl;
     const auto& a_0 = array.at(0);
     std::cout << "a_0: " << a_0.as<std::string>() << std::endl;
-    for (const auto& v : array.as<json::array>()) {
+    for (const auto& v : array) {
         switch (v.type()) {
             default:
                 std::cout << v.type_str() << std::endl;

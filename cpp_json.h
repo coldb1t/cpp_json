@@ -9,7 +9,15 @@
 #include <variant>
 #include <vector>
 
+// Config
 #define INCLUDE_NAMED_CASTS 1
+#define THROW_ON_BAD_COPY_CAST 0
+#define USE_CHAR_CONVERT_ON_DOUBLES 1
+
+//
+#if USE_CHAR_CONVERT_ON_DOUBLES == 1
+#include <charconv>
+#endif
 
 namespace cpp_json {
   enum class j_value_type : std::uint8_t
@@ -21,7 +29,6 @@ namespace cpp_json {
     Array,
     Object
   };
-
   using enum j_value_type;
 
   class json {
@@ -96,7 +103,7 @@ namespace cpp_json {
 #pragma region type checks
 #if INCLUDE_NAMED_CASTS == 1
     [[nodiscard]] inline bool is_str() const noexcept {
-      return is<String>();
+      return is<std::string>();
     }
 
     [[nodiscard]] inline bool is_arr() const noexcept {
@@ -108,15 +115,15 @@ namespace cpp_json {
     }
 
     [[nodiscard]] inline bool is_null() const noexcept {
-      return is<Null>();
+      return is<std::nullptr_t>();
     }
 
     [[nodiscard]] inline bool is_num() const noexcept {
-      return is<Number>();
+      return is<double>();
     }
 
     [[nodiscard]] inline bool is_bool() const noexcept {
-      return is<Boolean>();
+      return is<bool>();
     }
 #endif
 
@@ -186,7 +193,91 @@ namespace cpp_json {
 
       return std::get<array>(v_);
     }
+
+    [[nodiscard]] const std::string& as_str() const {
+      if (!is<String>()) {
+        throw type_error("invalid type cast");
+      }
+
+      return std::get<std::string>(v_);
+    }
+
+    [[nodiscard]] const double& as_num() const {
+      if (!is<Number>()) {
+        throw type_error("invalid type cast");
+      }
+
+      return std::get<double>(v_);
+    }
+
+    [[nodiscard]] const object& as_obj() const {
+      if (!is<Object>()) {
+        throw type_error("invalid type cast");
+      }
+
+      return std::get<object>(v_);
+    }
+
+    [[nodiscard]] const array& as_arr() const {
+      if (!is<Array>()) {
+        throw type_error("invalid type cast");
+      }
+
+      return std::get<array>(v_);
+    }
 #endif
+    template<typename T> requires std::is_arithmetic_v<T>
+    T as_copy() const {
+      switch (type()) {
+        default: {
+#if THROW_ON_BAD_COPY_CAST == 1
+          throw type_error("invalid type cast (copy)");
+#endif
+          break;
+        }
+        case Number:
+          return static_cast<T>(as<double>());
+        case Boolean:
+          return static_cast<T>(as<bool>());
+        case Null:
+          return static_cast<T>(0);
+      }
+
+
+      return T{};
+    }
+
+    template<typename T> requires std::same_as<T, std::string>
+    T as_copy() const {
+      std::string out;
+      switch (type()) {
+        default: {
+#if THROW_ON_BAD_COPY_CAST == 1
+          throw type_error("invalid type cast (copy)");
+#endif
+          break;
+        }
+
+        case Number: {
+          this->dump_double(this->as<double>(), out);
+          return out;
+        }
+
+        case Boolean:
+          return as<bool>() ? "true" : "false";
+
+        case Null:
+          return "null";
+
+        case String: {
+          this->dump_string(this->as<std::string>(), out);
+          return out;
+        }
+      }
+
+      return out;
+    }
+
     template<class T> requires allowed_v<T>
     T& as() {
       if (!is<T>()) {
@@ -230,21 +321,75 @@ namespace cpp_json {
     }
 
     // json
-    friend bool operator==(const json& a, const json& b) noexcept {
+    inline friend bool operator==(const json& a, const json& b) noexcept {
       return a.v_ == b.v_;
     }
 
     // Arrays
     json& operator[](const size_t key) {
-      if (!is<Array>()) {
-        throw type_error("invalid type cast");
-      }
+      return this->at(key);
+    }
 
-      return as<array>().at(key);
+    [[nodiscard]] const json& operator[](const size_t key) const {
+      return this->at(key);
+    }
+
+    // ostream
+    friend std::ostream& operator<<(std::ostream& os, const json& j) {
+      return os << j.dump();
     }
 #pragma endregion
 
 #pragma region arrays
+    // Iteration
+    [[nodiscard]] array::iterator begin() {
+      if (!is<array>()) {
+        throw type_error("begin() on non-array");
+      }
+
+      return as<array>().begin();
+    }
+
+    [[nodiscard]] array::iterator end() {
+      if (!is<array>()) {
+        throw type_error("end() on non-array");
+      }
+
+      return as<array>().end();
+    }
+
+    [[nodiscard]] array::const_iterator begin() const {
+      if (!is<array>()) {
+        throw type_error("begin() on non-array");
+      }
+
+      return as<array>().begin();
+    }
+
+    [[nodiscard]] array::const_iterator end() const {
+      if (!is<array>()) {
+        throw type_error("end() on non-array");
+      }
+
+      return as<array>().end();
+    }
+
+    [[nodiscard]] json& front() {
+      if (!is<array>()) {
+        throw type_error("front() on non-array");
+      }
+
+      return as<array>().front();
+    }
+
+    [[nodiscard]] json& back() {
+      if (!is<array>()) {
+        throw type_error("back() on non-array");
+      }
+
+      return as<array>().back();
+    }
+
     json& at(const size_t idx) {
       if (!is<array>()) {
         throw type_error("at(idx) on non-array");
@@ -261,6 +406,7 @@ namespace cpp_json {
       return as<array>().at(idx);
     }
 
+    // Inserting
     void push_back(json value) {
       if (!is<array>()) {
         throw type_error("push_back() on non-array");
@@ -282,20 +428,18 @@ namespace cpp_json {
       a.insert(a.begin() + idx, std::move(value));
     }
 
-    [[nodiscard]] json& front() {
+    // Erasing
+    void erase(const size_t idx) {
       if (!is<array>()) {
-        throw type_error("front() on non-array");
+        throw type_error("erase(idx) on non-array");
       }
 
-      return as<array>().front();
-    }
-
-    [[nodiscard]] json& back() {
-      if (!is<array>()) {
-        throw type_error("back() on non-array");
+      auto& a = as<array>();
+      if (idx > a.size()) {
+        throw type_error("index out of range");
       }
 
-      return as<array>().back();
+      a.erase(a.begin() + idx);
     }
 #pragma endregion
 
@@ -326,7 +470,6 @@ namespace cpp_json {
     void make_null() noexcept {
       v_ = nullptr;
     }
-
   private:
     void dump_object(const json& j, std::string& out) const {
       const auto& o = j.as<object>();
@@ -337,14 +480,16 @@ namespace cpp_json {
 
       out += "{ ";
 
-      for (auto idx = 0llu; idx < o.size(); idx++) {
+      const auto sz = o.size();
+      for (auto idx = 0llu; idx < sz; idx++) {
         const auto& [k, v] = o[idx];
 
+        out.push_back('"');
         dump_string(k, out);
-        out += ": ";
+        out += "\": ";
         dump_internal(v, out);
 
-        if (idx != o.size() - 1llu) {
+        if (idx != sz - 1llu) {
           out += ", ";
         }
       }
@@ -359,10 +504,11 @@ namespace cpp_json {
       }
 
       out.push_back('[');
-      for (auto idx = 0llu; idx < a.size(); idx++) {
+      const auto sz = a.size();
+      for (auto idx = 0llu; idx < sz; idx++) {
         const auto& v = a.at(idx);
         dump_internal(v, out);
-        if (idx != a.size() - 1llu) {
+        if (idx != sz - 1llu) {
           out += ", ";
         }
       }
@@ -370,14 +516,23 @@ namespace cpp_json {
       out.push_back(']');
     }
 
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void dump_string(const std::string& s, std::string& out) const {
-      out.push_back('"');
-      for (const auto& c : s) {
+      static constexpr char hex[] = "0123456789abcdef";
+      for (unsigned char c : s) {
         switch (c) {
-          default:
-            //\uXXXX
-            out.push_back(c);
+          default: {
+            //uXXXX, control chars
+            if (c < 0x20) {
+              out += "\\u00";
+              out.push_back(hex[c / 16]);
+              out.push_back(hex[c % 16]);
+              break;
+            }
+
+            out.push_back(static_cast<char>(c));
             break;
+          }
             //\ + "\/bfnrt
           case '"':
             out += "\\\"";
@@ -402,16 +557,34 @@ namespace cpp_json {
             break;
         }
       }
-      out.push_back('"');
     }
 
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void dump_double(const double& d, std::string& out) const {
+      if (!std::isfinite(d)) {
+        out += "null";
+        return;
+      }
+
       if (const auto d_i64 = static_cast<int64_t>(d); d == static_cast<double>(d_i64)) {
         out += std::to_string(d_i64);
         return;
       }
 
+#if USE_CHAR_CONVERT_ON_DOUBLES == 1
+      char buf[64];
+      auto [ptr, ec] = std::to_chars(
+          buf,
+          buf + sizeof(buf),
+          d,
+          std::chars_format::general,
+          std::numeric_limits<double>::max_digits10
+      );
+
+      out.append(buf, ptr);
+#else
       out += std::to_string(d);
+#endif
     }
 
     void dump_internal(const json& j, std::string& out) const {
@@ -423,7 +596,9 @@ namespace cpp_json {
           dump_array(j, out);
           break;
         case String:
+          out.push_back('"');
           dump_string(j.as<std::string>(), out);
+          out.push_back('"');
           break;
         case Number: {
           dump_double(j.as<double>(), out);
@@ -437,7 +612,6 @@ namespace cpp_json {
           break;
       }
     }
-
   public:
     [[nodiscard]] std::string dump() const {
       std::string out;

@@ -2,7 +2,7 @@
 
 A small, single-header mini JSON library implemented in modern C++ (**C++20**).  
 It focuses on a clean, type-safe API using `std::variant`, with convenient helpers for runtime type checks and typed access.
-Tested on Mac OS, built with CLion.
+Tested on macOS, built with CLion.
 Example usage in `main.cpp`
 
 ## Example
@@ -109,16 +109,16 @@ str: 1733
   - `try_as<T>()` returns pointer (or `nullptr`)
  
 ## TODO
-- [ ] Add clamp idx or throw an error in `insert(idx)` on attempting to insert out of range
+- [x] ~~Add clamp idx or throw an error in `insert(idx)` on attempting to insert out of range~~
 - [ ] Add `const` overload for `try_as<T>()`
-- [ ] Add `const` overloads for named getters (`as_str`, ...)
-- [ ] Consider addding `as_copy<T>()` helper that returns a value copy / conversion
+- [x] ~~Add `const` overloads for named getters (`as_str`, ...)~~
+- [x] ~~Consider addding `as_copy<T>()` helper that returns a value copy / conversion~~
 - [ ] Consider storing different numerical values not as `double` but in native (`int64_t`, ...)
 - [ ] Decide whether `json(const char*)` should treat `nullptr` as `null` instead of empty string
 - [ ] Add `contains(key)` helper for objects
-- [ ] Add `erase(key)` and `erase(idx)` helpers
-- [ ] Add iterators for arrays and objects
-- [ ] **Add JSON serialization (`dump()` / `to_string()`)**
+- [ ] Add `erase(key)` ~~and `erase(idx)` helpers~~
+- [ ] Add iterators for ~~arrays~~ and objects
+- [ ] **~~Add JSON serialization (`dump()`)~~, add "pretty" format**
 - [ ] **Add JSON parsing (`parse()` from string / stream)**
 - [ ] Add benchmarks/tests
 - [ ] Documentation?
