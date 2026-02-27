@@ -6,6 +6,7 @@ Tested on macOS, built with CLion.
 Example usage in `main.cpp`
 
 ## Example
+
 ```
 auto j = json::obj({
   {"id", 42},
@@ -69,6 +70,7 @@ std::cout << "Array dump: " << array << std::endl;
 ```
 
 ## Output
+
 ```
 JSON dump: { "id": 42, "key": "value", "bool": true, "null_value\n": null, "array": ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10], "users": [{ "id": 1 }, { "id": 2 }, {}, {}, {}], "empty_array": [] }
 { "id": 42, "key": "value", "bool": true, "null_value\n": null, "array": ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10], "users": [{ "id": 1 }, { "id": 2 }, {}, {}, {}], "empty_array": [] }
@@ -78,7 +80,7 @@ id (uint16_t): 2	id: 3	id: 3	key: value
 =========[ARRAY]=========
 Type: Array; Size: 12
 [ARRAY CONTENT]
-element [0] ("cpp") equals to [1] (true
+element [0] ("cpp") equals to [1] (true)
 Array iteration: [String: cpp; String: cpp; Number: 1.05; Number: -0; Boolean: 0; Boolean: 1; Null: nullptr; Number: 99; Number: 5; Number: 10; Number: 9999; String: 1733; ]
 Array dump: ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10, 9999, "1733"]
 ```
@@ -101,18 +103,11 @@ Array dump: ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10, 9999, "1733"]
 - Typed accessors:
   - `as<T>()` throws on mismatch
   - `try_as<T>()` returns pointer (or `nullptr`)
- 
+
 ## TODO
-- [x] ~~Add clamp idx or throw an error in `insert(idx)` on attempting to insert out of range~~
-- [x] ~~Add `const` overload for `try_as<T>()`~~
-- [x] ~~Add `const` overloads for named getters (`as_str`, ...)~~
-- [x] ~~Consider addding `as_copy<T>()` helper that returns a value copy / conversion~~
+
 - [ ] Consider storing different numerical values not as `double` but in native (`int64_t`, ...)
-- [x] ~~Decide whether `json(const char*)` should treat `nullptr` as `null` instead of empty string~~
-- [x] ~~Add `contains(key)` helper for objects~~
-- [x] ~~Add `erase(key)` and `erase(idx)` helpers~~
 - [ ] Add iterators for ~~arrays~~ and objects
-- [ ] **~~Add JSON serialization (`dump()`)~~, add "pretty" format**
 - [ ] **Add JSON parsing (`parse()` from string / stream)**
 - [ ] Add benchmarks/tests
 - [ ] Documentation?
