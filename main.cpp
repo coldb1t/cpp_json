@@ -12,11 +12,18 @@ int main() {
     {"array", json::arr({
         "cpp", "cpp", 1.05, -0.0, false, true, nullptr, 'c', 0x5, '\n'})},
     {"users", json::arr({
-        json::obj({ {"id", 1} }), json::obj({ { "id", 2 } }), json::obj(), json::obj(), json::obj() })},
-    {"empty_array", json::arr({})}
+            json::obj(),
+            json::obj({ {"id", 1}, {"data", json::obj({{"name", "Joe"}, {"phone", nullptr}}) } }),
+            json::obj({ { "id", 2 } }),
+            json::obj(),
+            json::obj({ {"id", 3}, {"data", json::obj({{"name", "Joe"}, {"phone", nullptr}}) } }),
+            json::obj({ {"id", 4}, {"data", json::obj({{"name", "Joe"}, {"phone", nullptr}}) } }),
+        })},
+    {"empty_array", json::arr({})},
+    {"array2", json::arr({json::obj(), json::obj()})}
     });
 
-    std::cout << "JSON dump: " << j << std::endl;
+    std::cout << "JSON dump: " << std::endl;
     std::cout << j << std::endl << std::endl;
 
     std::cout << "Root type: " << j.type_str() << "; Count: " << j.size() << std::endl;
@@ -33,7 +40,7 @@ int main() {
 
     std::cout << "[ARRAY CONTENT]" << std::endl;
     std::cout << "element [0] (" << array[0] << ") equals to [1] ("
-        << (array.at(0) == array[1] ? "true" : "false") << std::endl; // true
+        << (array.at(0) == array[1] ? "true" : "false") << ")" << std::endl; // true
 
     std::cout << "Array iteration: [";
     // Iterating "json" class (type: Array)

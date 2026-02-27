@@ -36,7 +36,8 @@ namespace cpp_json {
     Number,
     String,
     Array,
-    Object
+    Object,
+    Unknown
   };
   using enum j_value_type;
 
@@ -78,9 +79,7 @@ namespace cpp_json {
 
     template<typename V>
     requires std::same_as<V, std::nullptr_t>
-    json(const V v) {
-      v_ = nullptr;
-    };
+    json(const V v) {}
 
     json(const char* s) : v_(std::string(s ? s : "")) {}
     json(std::string s) : v_(std::move(s)) {}
@@ -593,41 +592,88 @@ namespace cpp_json {
       return 0llu;
     }
 
-    [[nodiscard]] bool empty() const noexcept {
+    [[nodiscard]] inline bool empty() const noexcept {
       return size() == 0llu;
     }
 #pragma endregion
 
-    void make_null() noexcept {
+    inline void make_null() noexcept {
       v_ = nullptr;
     }
   private:
-    void dump_object(const json& j, std::string& out) const {
+    struct dump_data {
+      j_value_type last_type = Unknown;
+      bool last_empty = false;
+      bool pretty = false;
+      size_t tab = 0llu;
+
+      dump_data& operator++(int) {
+        if (pretty) {
+          tab++;
+        }
+
+        return *this;
+      }
+
+      dump_data& operator--(int) {
+        if (pretty && tab > 0llu) {
+          tab--;
+        }
+
+        return *this;
+      }
+    };
+
+    void dump_object(const json& j, std::string& out, dump_data& data) const {
       const auto& o = j.as<object>();
-      if (o.empty()) {
+      const auto sz = o.size();
+
+      if (sz == 0llu) {
+        if (data.last_type != Array) {
+          out.insert(out.end(), data.tab, '\t');
+        } else if (data.pretty) {
+          out.push_back('\n');
+          out.insert(out.end(), data.tab, '\t');
+        }
         out += "{}";
+        data.last_empty = true;
         return;
       }
 
-      out += "{ ";
+      data.last_empty = false;
+      if (data.last_type == Object) {
+        out.insert(out.end(), data.tab, '\t');
+      }
+      out += data.pretty ? "{" : "{ ";
+      data++;
 
-      const auto sz = o.size();
       for (auto idx = 0llu; idx < sz; idx++) {
         const auto& [k, v] = o[idx];
-
+        if (data.pretty) {
+          out.push_back('\n');
+        }
+        out.insert(out.end(), data.tab, '\t');
         out.push_back('"');
         dump_string(k, out);
         out += "\": ";
-        dump_internal(v, out);
+        dump_internal(v, out, data);
 
         if (idx != sz - 1llu) {
-          out += ", ";
+          out += data.pretty ? "," : ", ";
         }
       }
-      out += " }";
+
+      data--;
+      if (data.pretty) {
+        out += "\n";
+        out.insert(out.end(), data.tab, '\t');
+        out += "}";
+      } else {
+        out += " }";
+      }
     }
 
-    void dump_array(const json& j, std::string& out) const {
+    void dump_array(const json& j, std::string& out, dump_data& data) const {
       const auto& a = j.as<array>();
       if (a.empty()) {
         out += "[]";
@@ -636,12 +682,31 @@ namespace cpp_json {
 
       out.push_back('[');
       const auto sz = a.size();
+      bool tab_first_empty = false;
+      if (sz > 0llu && data.pretty && a[0].is<object>() && a[0].empty()) {
+        tab_first_empty = true;
+        data++;
+      }
+
       for (auto idx = 0llu; idx < sz; idx++) {
         const auto& v = a.at(idx);
-        dump_internal(v, out);
+        dump_internal(v, out, data);
         if (idx != sz - 1llu) {
-          out += ", ";
+          out += data.pretty ? "," : ", ";
+          if (data.last_type == Object && data.pretty) {
+            out.push_back('\n');
+          }
+        } else {
+          if (data.last_empty && data.pretty) {
+            data--;
+            out.push_back('\n');
+            out.insert(out.end(), data.tab, '\t');
+          }
         }
+      }
+
+      if (tab_first_empty) {
+        data--;
       }
 
       out.push_back(']');
@@ -712,19 +777,27 @@ namespace cpp_json {
           std::numeric_limits<double>::max_digits10
       );
 
-      out.append(buf, ptr);
+      if (ec == std::errc()) {
+        out.append(buf, ptr);
+      } else {
+        out += "null";
+      }
 #else
       out += std::to_string(d);
 #endif
     }
 
-    void dump_internal(const json& j, std::string& out) const {
-      switch (j.type()) {
+    void dump_internal(const json& j, std::string& out, dump_data& data) const {
+      const auto type_ = j.type();
+      switch (type_) {
+        default:
+          break;
+
         case Object:
-          dump_object(j, out);
+          dump_object(j, out, data);
           break;
         case Array:
-          dump_array(j, out);
+          dump_array(j, out, data);
           break;
         case String:
           out.push_back('"');
@@ -742,12 +815,15 @@ namespace cpp_json {
           out += "null";
           break;
       }
+
+      data.last_type = type_;
     }
   public:
-    [[nodiscard]] std::string dump() const {
+    [[nodiscard]] std::string dump(const bool pretty = CPP_JSON_DEFAULT_PRETTY_DUMP) const {
       std::string out;
 
-      dump_internal(*this, out);
+      dump_data data{.pretty = pretty};
+      dump_internal(*this, out, data);
 
       return out;
     }
