@@ -8,21 +8,24 @@
   Config
 */
 #define CPP_JSON_INCLUDE_NAMED_CASTS 1
-#define CPP_JSON_THROW_ON_BAD_COPY_CAST 0
 #define CPP_JSON_USE_CHAR_CONVERT_ON_DOUBLES 1
-#define CPP_JSON_DEFAULT_PRETTY_DUMP false
+#define CPP_JSON_THROW_ON_BAD_COPY_CAST 0
+#define CPP_JSON_DEFAULT_DUMP_FORMAT j_dump_format::Pretty
 
 /*
   Includes
 */
 #include <cstddef>
+#include <ostream>
 #include <initializer_list>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
-#include <utility>
 #include <variant>
 #include <vector>
+#include <limits>
+#include <concepts>
+#include <cmath>
 
 #if CPP_JSON_USE_CHAR_CONVERT_ON_DOUBLES == 1
 #include <charconv>
@@ -36,10 +39,17 @@ namespace cpp_json {
     Number,
     String,
     Array,
-    Object,
-    Unknown
+    Object
   };
-  using enum j_value_type;
+
+  enum class j_dump_format : uint8_t {
+    Compress,
+    Compact,
+    Pretty
+  };
+
+#define CPP_JSON_ASSERT_TYPE(type) \
+  do { if (!is<type>()) { throw type_error((std::string)__func__ + " on non-" + #type); } } while(0);
 
   class json {
   public:
@@ -50,8 +60,8 @@ namespace cpp_json {
     using storage = std::variant<std::nullptr_t, bool, double, std::string, array, object>;
     storage v_{nullptr};
 
-    static std::runtime_error type_error(const char* msg) {
-      return std::runtime_error(std::string("cpp_json error: ") + std::string(msg));
+    static std::runtime_error type_error(const std::string& msg) {
+      return std::runtime_error(std::string("cpp_json error: ") + msg);
     }
 
     template<class TT>
@@ -65,8 +75,7 @@ namespace cpp_json {
   public:
     json() noexcept = default;
 
-    template <class V>
-    requires std::is_arithmetic_v<std::remove_cvref_t<V>>
+    template <class V> requires std::is_arithmetic_v<std::remove_cvref_t<V>>
     json(V v) {
       using T = std::remove_cvref_t<V>;
 
@@ -77,9 +86,7 @@ namespace cpp_json {
       }
     }
 
-    template<typename V>
-    requires std::same_as<V, std::nullptr_t>
-    json(const V v) {}
+    json(std::nullptr_t) {}
 
     json(const char* s) : v_(std::string(s ? s : "")) {}
     json(std::string s) : v_(std::move(s)) {}
@@ -135,25 +142,26 @@ namespace cpp_json {
     }
 #endif
 
-    [[nodiscard]] inline j_value_type type() const noexcept {
-      return static_cast<j_value_type>(v_.index());
+    [[nodiscard]] j_value_type type() const noexcept {
+      return std::visit([]<typename T0>(const T0&) -> j_value_type {
+        using T = std::decay_t<T0>;
+        if constexpr (std::is_same_v<T, std::nullptr_t>) return j_value_type::Null;
+        else if constexpr (std::is_same_v<T, bool>) return j_value_type::Boolean;
+        else if constexpr (std::is_same_v<T, double>) return j_value_type::Number;
+        else if constexpr (std::is_same_v<T, std::string>) return j_value_type::String;
+        else if constexpr (std::is_same_v<T, array>) return j_value_type::Array;
+        else return j_value_type::Object;
+      }, v_);
     }
 
     [[nodiscard]] const char* type_str() const noexcept {
       switch (type()) {
-        default:
-          return "Null";
-
-        case Boolean:
-          return "Boolean";
-        case Number:
-          return "Number";
-        case String:
-          return "String";
-        case Array:
-          return "Array";
-        case Object:
-          return "Object";
+        default: return "Null";
+        case j_value_type::Boolean: return "Boolean";
+        case j_value_type::Number: return "Number";
+        case j_value_type::String: return "String";
+        case j_value_type::Array: return "Array";
+        case j_value_type::Object: return "Object";
       }
     }
 
@@ -171,65 +179,49 @@ namespace cpp_json {
 #pragma region type casts
 #if CPP_JSON_INCLUDE_NAMED_CASTS == 1
     std::string& as_str() {
-      if (!is<String>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(std::string)
 
       return std::get<std::string>(v_);
     }
 
     double& as_num() {
-      if (!is<Number>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(double)
 
       return std::get<double>(v_);
     }
 
     object& as_obj() {
-      if (!is<Object>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(object)
 
       return std::get<object>(v_);
     }
 
     array& as_arr() {
-      if (!is<Array>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return std::get<array>(v_);
     }
 
     [[nodiscard]] const std::string& as_str() const {
-      if (!is<String>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(std::string)
 
       return std::get<std::string>(v_);
     }
 
     [[nodiscard]] const double& as_num() const {
-      if (!is<Number>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(double)
 
       return std::get<double>(v_);
     }
 
     [[nodiscard]] const object& as_obj() const {
-      if (!is<Object>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(object)
 
       return std::get<object>(v_);
     }
 
     [[nodiscard]] const array& as_arr() const {
-      if (!is<Array>()) {
-        throw type_error("invalid type cast");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return std::get<array>(v_);
     }
@@ -240,15 +232,13 @@ namespace cpp_json {
         default: {
 #if CPP_JSON_THROW_ON_BAD_COPY_CAST == 1
           throw type_error("invalid type cast (copy)");
-#endif
+#else
           break;
+#endif
         }
-        case Number:
-          return static_cast<T>(as<double>());
-        case Boolean:
-          return static_cast<T>(as<bool>());
-        case Null:
-          return static_cast<T>(0);
+        case j_value_type::Number: return static_cast<T>(as<double>());
+        case j_value_type::Boolean: return static_cast<T>(as<bool>());
+        case j_value_type::Null: return static_cast<T>(0);
       }
 
       return T{};
@@ -264,19 +254,13 @@ namespace cpp_json {
 #endif
           break;
         }
-
-        case Number: {
+        case j_value_type::Number: {
           this->dump_double(this->as<double>(), out);
           return out;
         }
-
-        case Boolean:
-          return as<bool>() ? "true" : "false";
-
-        case Null:
-          return "null";
-
-        case String: {
+        case j_value_type::Boolean: return as<bool>() ? "true" : "false";
+        case j_value_type::Null: return "null";
+        case j_value_type::String: {
           this->dump_string(this->as<std::string>(), out);
           return out;
         }
@@ -317,9 +301,7 @@ namespace cpp_json {
 #pragma region operators
     // Objects
     json& operator[](const char* key) {
-      if (!is<object>()) {
-        throw type_error("operator[](key) on a non-object");
-      }
+      CPP_JSON_ASSERT_TYPE(object)
 
       auto& o = as<object>();
       for (auto& [k, v] : o) {
@@ -333,9 +315,7 @@ namespace cpp_json {
     }
 
     const json& operator[](const char* key) const {
-      if (!is<object>()) {
-        throw type_error("operator[](key) on a non-object");
-      }
+      CPP_JSON_ASSERT_TYPE(object)
 
       for (auto& [k, v] : as<object>()) {
         if (k == key) {
@@ -352,14 +332,14 @@ namespace cpp_json {
     }
 
     // Arrays
-    template<typename T = size_t> // Otherwise [0] will be ambiguous
+    template<std::integral T>
     json& operator[](const T idx) {
-      return this->at(idx); // This checks type
+      return this->at(static_cast<size_t>(idx));
     }
 
-    template<typename T = size_t>
-    [[nodiscard]] const json& operator[](const T key) const {
-      return this->at(key);
+    template<std::integral T>
+    [[nodiscard]] const json& operator[](const T idx) const {
+      return this->at(static_cast<size_t>(idx));
     }
 
     // ostream
@@ -369,9 +349,7 @@ namespace cpp_json {
 
     // String
     json& operator+=(const std::string& rhs) {
-      if (!is<std::string>()) {
-        throw type_error("operator+= on non-string");
-      }
+      CPP_JSON_ASSERT_TYPE(std::string)
 
       auto& str = as<std::string>();
       str += rhs;
@@ -382,9 +360,7 @@ namespace cpp_json {
     // Number
     template<typename T> requires std::is_arithmetic_v<T>
     json& operator+=(const T& rhs) {
-      if (!is<double>()) {
-        throw type_error("operator+= on non-double");
-      }
+      CPP_JSON_ASSERT_TYPE(double)
 
       as<double>() += static_cast<double>(rhs);
       return *this;
@@ -392,46 +368,36 @@ namespace cpp_json {
 
     template<typename T> requires std::is_arithmetic_v<T>
     json& operator-=(const T& rhs) {
-      if (!is<double>()) {
-        throw type_error("operator-= on non-double");
-      }
+      CPP_JSON_ASSERT_TYPE(double)
 
       as<double>() -= static_cast<double>(rhs);
       return *this;
     }
 
-    json& operator++(int) {
-      if (!is<double>()) {
-        throw type_error("operator++ on non-double");
-      }
+    json& operator++() {
+      CPP_JSON_ASSERT_TYPE(double)
 
-      as<double>()++;
+      ++as<double>();
       return *this;
     }
 
-    json& operator--(int) {
-      if (!is<double>()) {
-        throw type_error("operator-- on non-double");
-      }
+    json& operator--() {
+      CPP_JSON_ASSERT_TYPE(double)
 
-      as<double>()--;
+      --as<double>();
       return *this;
     }
 
     template<typename T> requires std::is_arithmetic_v<T>
     json operator+(const T& rhs) const {
-      if (!is<double>()) {
-        throw type_error("operator+ on non-double");
-      }
+      CPP_JSON_ASSERT_TYPE(double)
 
       return as<double>() + static_cast<double>(rhs);
     }
 
     template<typename T> requires std::is_arithmetic_v<T>
     json operator-(const T& rhs) const {
-      if (!is<double>()) {
-        throw type_error("operator- on non-double");
-      }
+      CPP_JSON_ASSERT_TYPE(double)
 
       return as<double>() - static_cast<double>(rhs);
     }
@@ -440,82 +406,62 @@ namespace cpp_json {
 #pragma region arrays
     // Iteration
     [[nodiscard]] array::iterator begin() {
-      if (!is<array>()) {
-        throw type_error("begin() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().begin();
     }
 
     [[nodiscard]] array::iterator end() {
-      if (!is<array>()) {
-        throw type_error("end() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().end();
     }
 
     [[nodiscard]] array::const_iterator begin() const {
-      if (!is<array>()) {
-        throw type_error("begin() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().begin();
     }
 
     [[nodiscard]] array::const_iterator end() const {
-      if (!is<array>()) {
-        throw type_error("end() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().end();
     }
 
     [[nodiscard]] json& front() {
-      if (!is<array>()) {
-        throw type_error("front() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().front();
     }
 
     [[nodiscard]] json& back() {
-      if (!is<array>()) {
-        throw type_error("back() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().back();
     }
 
     json& at(const size_t idx) {
-      if (!is<array>()) {
-        throw type_error("at(idx) on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().at(idx);
     }
 
     [[nodiscard]] const json& at(const size_t idx) const {
-      if (!is<array>()) {
-        throw type_error("at(idx) on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       return as<array>().at(idx);
     }
 
     // Inserting
     void push_back(json value) {
-      if (!is<array>()) {
-        throw type_error("push_back() on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       as<array>().push_back(std::move(value));
     }
 
     void insert(const size_t idx, json value) {
-      if (!is<array>()) {
-        throw type_error("insert(idx) on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       auto& a = as<array>();
       if (idx > a.size()) {
@@ -527,12 +473,10 @@ namespace cpp_json {
 
     // Erasing
     void erase(const size_t idx) {
-      if (!is<array>()) {
-        throw type_error("erase(idx) on non-array");
-      }
+      CPP_JSON_ASSERT_TYPE(array)
 
       auto& a = as<array>();
-      if (idx > a.size()) {
+      if (idx >= a.size()) {
         throw type_error("index out of range");
       }
 
@@ -542,12 +486,10 @@ namespace cpp_json {
 
 #pragma region objects
     [[nodiscard]] bool contains_key(const char* key) const {
-      if (!is<object>()) {
-        throw type_error("contains_key(key) on non-object");
-      }
+      CPP_JSON_ASSERT_TYPE(object)
 
-      for (const auto& [k, v] : as<object>()) {
-        if (k == key) {
+      for (const auto &p: as<object>()) {
+        if (p.first == key) {
           return true;
         }
       }
@@ -562,8 +504,7 @@ namespace cpp_json {
 
       auto& o = as<object>();
       for (auto i = 0llu; i < o.size(); i++) {
-        const auto& [k,_] = o[i];
-        if (k == key) {
+        if (o[i].first == key) {
           o.erase(o.begin() + static_cast<std::ptrdiff_t>(i));
           return true;
         }
@@ -576,17 +517,10 @@ namespace cpp_json {
 #pragma region size
     [[nodiscard]] size_t size() const noexcept {
       switch (type()) {
-        default:
-          break;
-
-        case Array:
-          return as<array>().size();
-
-        case Object:
-          return as<object>().size();
-
-        case String:
-          return as<std::string>().size();
+        default: break;
+        case j_value_type::Array: return as<array>().size();
+        case j_value_type::Object: return as<object>().size();
+        case j_value_type::String: return as<std::string>().size();
       }
 
       return 0llu;
@@ -602,13 +536,23 @@ namespace cpp_json {
     }
   private:
     struct dump_data {
-      j_value_type last_type = Unknown;
-      bool last_empty = false;
-      bool pretty = false;
+      j_dump_format format = CPP_JSON_DEFAULT_DUMP_FORMAT;
       size_t tab = 0llu;
 
+      [[nodiscard]] inline bool pretty() const {
+        return format == j_dump_format::Pretty;
+      }
+
+      [[nodiscard]] inline bool minimal() const {
+        return format == j_dump_format::Compress;
+      }
+
+      [[nodiscard]] inline bool compact() const {
+        return format == j_dump_format::Compact;
+      }
+
       dump_data& operator++(int) {
-        if (pretty) {
+        if (pretty()) {
           tab++;
         }
 
@@ -616,7 +560,7 @@ namespace cpp_json {
       }
 
       dump_data& operator--(int) {
-        if (pretty && tab > 0llu) {
+        if (pretty() && tab > 0llu) {
           tab--;
         }
 
@@ -629,87 +573,80 @@ namespace cpp_json {
       const auto sz = o.size();
 
       if (sz == 0llu) {
-        if (data.last_type != Array) {
-          out.insert(out.end(), data.tab, '\t');
-        } else if (data.pretty) {
-          out.push_back('\n');
-          out.insert(out.end(), data.tab, '\t');
-        }
         out += "{}";
-        data.last_empty = true;
         return;
       }
 
-      data.last_empty = false;
-      if (data.last_type == Object) {
-        out.insert(out.end(), data.tab, '\t');
-      }
-      out += data.pretty ? "{" : "{ ";
+      out += (data.pretty() || data.minimal()) ? "{" : "{ ";
       data++;
 
       for (auto idx = 0llu; idx < sz; idx++) {
         const auto& [k, v] = o[idx];
-        if (data.pretty) {
+        if (data.pretty()) {
           out.push_back('\n');
+          out.insert(out.end(), data.tab, '\t');
         }
-        out.insert(out.end(), data.tab, '\t');
+
         out.push_back('"');
         dump_string(k, out);
-        out += "\": ";
+        out += data.minimal() ? "\":" : "\": ";
         dump_internal(v, out, data);
 
         if (idx != sz - 1llu) {
-          out += data.pretty ? "," : ", ";
+          out += ((data.pretty() || data.minimal()) ? "," : ", ");
         }
       }
 
       data--;
-      if (data.pretty) {
+
+      if (data.pretty()) {
         out += "\n";
         out.insert(out.end(), data.tab, '\t');
         out += "}";
       } else {
-        out += " }";
+        out += data.minimal() ? "}" : " }";
       }
     }
 
     void dump_array(const json& j, std::string& out, dump_data& data) const {
       const auto& a = j.as<array>();
-      if (a.empty()) {
+      const auto sz = a.size();
+      if (sz == 0llu) {
         out += "[]";
         return;
       }
 
-      out.push_back('[');
-      const auto sz = a.size();
-      bool tab_first_empty = false;
-      if (sz > 0llu && data.pretty && a[0].is<object>() && a[0].empty()) {
-        tab_first_empty = true;
-        data++;
+      switch (data.format) {
+        default: out += "[ "; break;
+        case j_dump_format::Pretty: out += "[\n"; break;
+        case j_dump_format::Compress: out += "["; break;
       }
+      data++;
 
       for (auto idx = 0llu; idx < sz; idx++) {
         const auto& v = a.at(idx);
+        if (data.pretty()) {
+          out.insert(out.end(), data.tab, '\t');
+        }
         dump_internal(v, out, data);
+
         if (idx != sz - 1llu) {
-          out += data.pretty ? "," : ", ";
-          if (data.last_type == Object && data.pretty) {
-            out.push_back('\n');
-          }
-        } else {
-          if (data.last_empty && data.pretty) {
-            data--;
-            out.push_back('\n');
-            out.insert(out.end(), data.tab, '\t');
+          switch (data.format) {
+            default: out += ","; break;
+            case j_dump_format::Compact: out += ", "; break;
+            case j_dump_format::Pretty: out += ",\n"; break;
           }
         }
       }
 
-      if (tab_first_empty) {
-        data--;
+      data--;
+
+      if (data.pretty()) {
+        out.push_back('\n');
+        out.insert(out.end(), data.tab, '\t');
       }
 
-      out.push_back(']');
+      out += data.compact() ? " ]" : "]";
     }
 
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
@@ -718,8 +655,7 @@ namespace cpp_json {
       for (unsigned char c : s) {
         switch (c) {
           default: {
-            //uXXXX, control chars
-            if (c < 0x20) {
+            if (c < 0x20) { //uXXXX, control chars
               out += "\\u00";
               out.push_back(hex[c / 16]);
               out.push_back(hex[c % 16]);
@@ -730,27 +666,13 @@ namespace cpp_json {
             break;
           }
             //\ + "\/bfnrt
-          case '"':
-            out += "\\\"";
-            break;
-          case '\b':
-            out += "\\b";
-            break;
-          case '\f':
-            out += "\\f";
-            break;
-          case '\n':
-            out += "\\n";
-            break;
-          case '\r':
-            out += "\\r";
-            break;
-          case '\t':
-            out += "\\t";
-            break;
-          case '\\':
-            out += "\\\\";
-            break;
+          case '"': out += "\\\""; break;
+          case '\b': out += "\\b"; break;
+          case '\f': out += "\\f"; break;
+          case '\n': out += "\\n"; break;
+          case '\r': out += "\\r"; break;
+          case '\t': out += "\\t"; break;
+          case '\\': out += "\\\\"; break;
         }
       }
     }
@@ -762,8 +684,8 @@ namespace cpp_json {
         return;
       }
 
-      if (const auto d_i64 = static_cast<int64_t>(d); d == static_cast<double>(d_i64)) {
-        out += std::to_string(d_i64);
+      if (d == 0.0) { //-0.0
+        out += "0";
         return;
       }
 
@@ -777,7 +699,7 @@ namespace cpp_json {
           std::numeric_limits<double>::max_digits10
       );
 
-      if (ec == std::errc()) {
+      if (ec == std::errc{}) {
         out.append(buf, ptr);
       } else {
         out += "null";
@@ -790,39 +712,26 @@ namespace cpp_json {
     void dump_internal(const json& j, std::string& out, dump_data& data) const {
       const auto type_ = j.type();
       switch (type_) {
-        default:
-          break;
-
-        case Object:
-          dump_object(j, out, data);
-          break;
-        case Array:
-          dump_array(j, out, data);
-          break;
-        case String:
+        default: break;
+        case j_value_type::Object: dump_object(j, out, data); break;
+        case j_value_type::Array: dump_array(j, out, data); break;
+        case j_value_type::String: {
           out.push_back('"');
           dump_string(j.as<std::string>(), out);
           out.push_back('"');
           break;
-        case Number: {
-          dump_double(j.as<double>(), out);
-          break;
         }
-        case Boolean:
-          out += j.as<bool>() ? "true" : "false";
-          break;
-        case Null:
-          out += "null";
-          break;
+        case j_value_type::Number: dump_double(j.as<double>(), out); break;
+        case j_value_type::Boolean: out += j.as<bool>() ? "true" : "false"; break;
+        case j_value_type::Null: out += "null"; break;
       }
 
-      data.last_type = type_;
     }
   public:
-    [[nodiscard]] std::string dump(const bool pretty = CPP_JSON_DEFAULT_PRETTY_DUMP) const {
+    [[nodiscard]] std::string dump(const j_dump_format dump_format = CPP_JSON_DEFAULT_DUMP_FORMAT) const {
       std::string out;
 
-      dump_data data{.pretty = pretty};
+      dump_data data{.format = dump_format};
       dump_internal(*this, out, data);
 
       return out;

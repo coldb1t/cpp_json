@@ -7,82 +7,97 @@ Example usage in `main.cpp`
 
 ## Example
 
-```
+```c++
 auto j = json::obj({
-  {"id", 42},
-  {"key", "value"},
-  {"bool", true},
-  {"null_value\n", nullptr},
-  {"array", json::arr({
-      "cpp", "cpp", 1.05, -0.0, false, true, nullptr, 'c', 0x5, '\n'})},
-  {"users", json::arr({
-      json::obj({ {"id", 1} }), json::obj({ { "id", 2 } }), json::obj(), json::obj(), json::obj() })},
-  {"empty_array", json::arr({})}
+    {"id", 9},
+    {"bool", true},
+    {"null_value", nullptr},
+    {"array", json::arr({
+        "cpp", 'c', 1.05, -0.0, false, nullptr, '\n'})},
+    {"users", json::arr({
+            json::obj(),
+            json::obj({ {"id", 1},
+                {"data", json::obj({{"name", "Joe Griffin"}, {"phone", "+1-207-883-5350"}}) } }),
+            json::obj({ {"id", 2},
+                {"data", json::obj({{"name", "John Clark"}, {"phone", "+1-817-473-1454"}}) } }),
+        })},
+    {"empty_array", json::arr({})},
+    {"array_with_empty_objects", json::arr({json::obj(), json::obj()})}
 });
 
-std::cout << "JSON dump: " << j << std::endl;
-std::cout << j << std::endl << std::endl;
+std::cout << "JSON dump: " << std::endl;
+std::cout << j.dump(j_dump_format::Pretty) << std::endl;
 
-std::cout << "Root type: " << j.type_str() << "; Count: " << j.size() << std::endl;
-auto& id = j["id"]; id = 2;
-std::cout << "id (uint16_t): " << id.as_copy<std::uint16_t>() << '\t'; // 2
-std::cout << "id: " << (id++) << '\t'; // 3
-std::cout << "id: " << id << '\t'; // 3
-std::cout << "key: " << j["key"].as<std::string>() << std::endl; // value
+std::cout << "Root type: " << j.type_str() << "; Size: " << j.size() << std::endl;
+auto& id = j["id"]; id = 1.05;
+std::cout << "id (as uint16_t): " << id.as_copy<uint16_t>() << '\t'; // 1
+std::cout << "id: " << ++id << '\t' << std::endl; // ~2.05
 
 std::cout << "=========[ARRAY]=========" << std::endl;
 auto& array = j["array"];
-array.push_back(9999); array.push_back("1733");
 std::cout << "Type: " << array.type_str() << "; Size: " << array.size() << std::endl;
 
-std::cout << "[ARRAY CONTENT]" << std::endl;
-std::cout << "element [0] (" << array[0] << ") equals to [1] ("
+std::cout << "element[0] (" << array[0] << ") equals to element[1] ("
+    << array[1] << "): "
     << (array.at(0) == array[1] ? "true" : "false") << std::endl; // true
 
-std::cout << "Array iteration: [";
+std::cout << "Array iteration: [ ";
 // Iterating "json" class (type: Array)
 for (const auto& v : array) {
-    switch (v.type()) {
-        default:
-            std::cout << "Default: " << v.type_str() << "; ";
-            break;
-
-        case String:
-            std::cout << "String: " << v.as<std::string>() << "; ";
-            break;
-
-        case Number:
-            std::cout << "Number: " << v.as<double>() << "; ";
-            break;
-
-        case Boolean:
-            std::cout << "Boolean: " << v.as<bool>() << "; ";
-            break;
-
-        case Null:
-            std::cout << "Null: " << v.as<std::nullptr_t>() << "; ";
-            break;
-    }
+    std::cout << v << " (" << v.type_str() << ") ";
 }
 std::cout << "]" << std::endl;
 
-std::cout << "Array dump: " << array << std::endl;
+std::cout << "Array dump: " << array.dump(j_dump_format::Compact) << std::endl;
 ```
 
 ## Output
 
 ```
-JSON dump: { "id": 42, "key": "value", "bool": true, "null_value\n": null, "array": ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10], "users": [{ "id": 1 }, { "id": 2 }, {}, {}, {}], "empty_array": [] }
-{ "id": 42, "key": "value", "bool": true, "null_value\n": null, "array": ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10], "users": [{ "id": 1 }, { "id": 2 }, {}, {}, {}], "empty_array": [] }
-
-Root type: Object; Count: 7
-id (uint16_t): 2	id: 3	id: 3	key: value
+JSON dump: 
+{
+	"id": 9,
+	"bool": true,
+	"null_value": null,
+	"array": [
+		"cpp",
+		99,
+		1.05,
+		0,
+		false,
+		null,
+		10
+	],
+	"users": [
+		{},
+		{
+			"id": 1,
+			"data": {
+				"name": "Joe Griffin",
+				"phone": "+1-207-883-5350"
+			}
+		},
+		{
+			"id": 2,
+			"data": {
+				"name": "John Clark",
+				"phone": "+1-817-473-1454"
+			}
+		}
+	],
+	"empty_array": [],
+	"array_with_empty_objects": [
+		{},
+		{}
+	]
+}
+Root type: Object; Size: 7
+id (as uint16_t): 1	id: 2.0499999999999998	
 =========[ARRAY]=========
-Type: Array; Size: 12
-[ARRAY CONTENT]
-element [0] ("cpp") equals to [1] (true)
-Array iteration: [String: cpp; String: cpp; Number: 1.05; Number: -0; Boolean: 0; Boolean: 1; Null: nullptr; Number: 99; Number: 5; Number: 10; Number: 9999; String: 1733; ]
-Array dump: ["cpp", "cpp", 1.05, 0, false, true, null, 99, 5, 10, 9999, "1733"]
+Type: Array; Size: 7
+element[0] ("cpp") equals to element[1] (99): false
+Array iteration: [ "cpp" (String) 99 (Number) 1.05 (Number) 0 (Number) false (Boolean) null (Null) 10 (Number) ]
+Array dump: [ "cpp", 99, 1.05, 0, false, null, 10 ]
 ```
 
 ## Features
